@@ -1,7 +1,6 @@
 'use client'
 
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
 import { Fireworks } from '@fireworks-js/react'
@@ -12,6 +11,28 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PlusCircle, Trash2, Edit2, Play, ChevronRight, RotateCcw } from 'lucide-react'
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyC_p4Idqg5qKbF_EaAZQdc3WIRMWcn8JhU",
+  authDomain: "quiz-26a21.firebaseapp.com",
+  projectId: "quiz-26a21",
+  storageBucket: "quiz-26a21.appspot.com",
+  messagingSenderId: "1014842334883",
+  appId: "1:1014842334883:web:4e5e189344dfdf59c1e916",
+  measurementId: "G-0CJMRPX55Z"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
 // Types
 type Answer = {
@@ -43,13 +64,28 @@ export function AiQuizApp() {
   const [quizStarted, setQuizStarted] = useState(false)
   const [quizFinished, setQuizFinished] = useState(false)
   const [quizResult, setQuizResult] = useState<'success' | 'failure' | null>(null)
+  const correctSoundRef = useRef<HTMLAudioElement | null>(null)
+  const incorrectSoundRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     fetchQuestions()
-    // Her 30 saniyede bir soruları yenile
+    // Refresh questions every 30 seconds
     const interval = setInterval(fetchQuestions, 30000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    correctSoundRef.current = new Audio('/sounds/correct.mp3')
+    incorrectSoundRef.current = new Audio('/sounds/incorrect.mp3')
+  }, [])
+
+  const playSound = (isCorrect: boolean) => {
+    if (isCorrect) {
+      correctSoundRef.current?.play()
+    } else {
+      incorrectSoundRef.current?.play()
+    }
+  }
 
   const fetchQuestions = async () => {
     try {
@@ -58,7 +94,7 @@ export function AiQuizApp() {
         throw new Error('Network response was not ok')
       }
       const data = await response.json()
-      console.log('Fetched questions:', data) // Hata ayıklama için
+      console.log('Fetched questions:', data) // For debugging
       setQuestions(data)
     } catch (error) {
       console.error('Error fetching questions:', error)
@@ -162,7 +198,11 @@ export function AiQuizApp() {
     if (selectedAnswer !== null) {
       const currentQuestion = quizQuestions[currentQuestionIndex]
       const selectedAnswerObj = currentQuestion.answers.find(answer => answer.id === selectedAnswer)
-      if (selectedAnswerObj && selectedAnswerObj.is_correct) {
+      const isCorrect = selectedAnswerObj?.is_correct || false
+      
+      playSound(isCorrect)
+      
+      if (isCorrect) {
         setScore(score + 1)
       }
     }
@@ -172,7 +212,7 @@ export function AiQuizApp() {
       setSelectedAnswer(null)
     } else {
       setQuizFinished(true)
-      const successThreshold = Math.ceil(quizQuestions.length * 0.7) // 70% başarı eşiği
+      const successThreshold = Math.ceil(quizQuestions.length * 0.7) // 70% success threshold
       setQuizResult(score >= successThreshold ? 'success' : 'failure')
     }
   }
@@ -340,11 +380,11 @@ export function AiQuizApp() {
                       exit={{ opacity: 0, scale: 0.8 }}
                       transition={{ duration: 0.5 }}
                     >
-                      <h3 className="text-2xl font-bold mb-4">Quiz Tamamlandı!</h3>
-                      <p className="text-xl mb-4">Puanınız: {score} / {quizQuestions.length}</p>
+                      <h3 className="text-2xl font-bold mb-4">Quiz Completed!</h3>
+                      <p className="text-xl mb-4">Your Score: {score} / {quizQuestions.length}</p>
                       {quizResult === 'success' ? (
                         <>
-                          <p className="text-2xl mb-4">🎉 Tebrikler! Harika bir iş çıkardınız! 🎉</p>
+                          <p className="text-2xl mb-4">🎉 Congratulations! You did a great job! 🎉</p>
                           <Fireworks
                             options={{
                               rocketsPoint: {
@@ -363,10 +403,10 @@ export function AiQuizApp() {
                           />
                         </>
                       ) : (
-                        <p className="text-2xl mb-4">😔 Üzülme, bir dahaki sefere daha iyi olacak!</p>
+                        <p className="text-2xl mb-4">😔 Don't worry, you'll do better next time!</p>
                       )}
                       <Button onClick={startQuiz} className="bg-blue-600 hover:bg-blue-700">
-                        <RotateCcw className="mr-2 h-4 w-4" /> Quizi Yeniden Başlat
+                        <RotateCcw className="mr-2 h-4 w-4" /> Restart Quiz
                       </Button>
                     </motion.div>
                   </AnimatePresence>
